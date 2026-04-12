@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deep_phylo"
+version = "0.1.0"
+description = "Development version of PhyloKit's clade representation and expansion framework."
+readme = "README.md"
+requires-python = ">=3.9"
+
+dependencies = [
+    "biopython>=1.83",
+    "ete3>=3.1",
+    "matplotlib>=3.5",
+    "numpy>=2.3.0",
+    "pandas>=2.2.0",
+    "scipy>=1.13.0",
+    "requests>=2.23.2",
+    "treeswift>=1.1.45",
+    "xmltodict>=1.0.0",
+    "scikit-learn>1.6.0"
+]
