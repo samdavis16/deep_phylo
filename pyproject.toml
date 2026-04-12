@@ -19,5 +19,6 @@ dependencies = [
     "requests>=2.23.2",
     "treeswift>=1.1.45",
     "xmltodict>=1.0.0",
-    "scikit-learn>1.6.0"
+    "scikit-learn>1.6.0",
+    "legacy-cgi; python_version >= '3.13'"
 ]
