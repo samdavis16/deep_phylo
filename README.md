@@ -6,7 +6,6 @@ The workflow is iterative and involves successive profile HMM (pHMM)-based searc
   
 > **Note:** The interface made available here is preliminary and does not expose all functionality and customisation. A more comprehensive and fully featured CLI is currently under development, as well as various optimisation of the underlying framework.  
   
----  
   
 ## Installation  
  
@@ -19,7 +18,6 @@ git clone https://github.com/samdavis16/deep_phylo.git
 cd deep_phylo  
 pip install .
 ```
----
 
 ## Non-Python dependencies
 
