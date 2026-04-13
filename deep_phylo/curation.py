@@ -17,7 +17,7 @@ from . import file_util
 
 def fetch_uniparc_fasta(
         segments=None,
-        unzip=False,
+        unzip=True,
         max_threads=1,
         verbose=1
 ):
@@ -31,20 +31,30 @@ def fetch_uniparc_fasta(
         segments = range(1, 201)
 
     def get_segment(segment, unzip=False, verbose=verbose):
-        # address = f"https://ftp.uniprot.org/pub/databases/uniprot/current_release/uniparc/fasta/active/uniparc_active_p{segment}.fasta.gz"
-        address = f"https://ftp.expasy.org/databases/uniprot/current_release/uniparc/fasta/active/uniparc_active_p{segment}.fasta.gz"
+        segment_name = f"uniparc_active_p{segment}.fasta"
+        address = f"https://ftp.expasy.org/databases/uniprot/current_release/uniparc/fasta/active/{segment_name}.gz"
         if verbose == 1:
             print(f"Commencing download for segment {segment}.")
-        os.system(f"wget {'--quiet ' if verbose != 2 else ''}{address}")
+        wget_cmd = ["wget"]
+        if verbose !=2:
+            wget_cmd.append("--quiet")
+        wget_cmd.append(address)
+        subprocess.run(wget_cmd, check=True)
         if unzip:
-            os.system(f"gzip -d uniparc_active_p{segment}.fasta.gz")
+            subprocess.run(f"gzip -d {segment_name}.gz")
         if verbose == 1:
             print(f"Finished download for segment {segment}.")
 
-    # Multi-threading
-    executor = ThreadPoolExecutor(max_workers=max_threads)
-    future_list = [executor.submit(get_segment, segment, unzip) for segment in segments]
-    wait(future_list)
+    # Submit download jobs as threads
+    with ThreadPoolExecutor(max_workers=max_threads) as executor:
+
+        try:
+            future_list = [executor.submit(get_segment, segment, unzip) for segment in segments]
+            for future in as_completed(future_list):
+                future.result()
+        
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
 
 def profile_uniparc_search(
