@@ -248,9 +248,6 @@ def fetch_batch_to_file(entryIds, result_file, lock, dbName='uniprotkb', format 
         if log_file:
             with open(log_file, 'a') as file:
                 file.write(batch_log)
-            # TODO: For debugging - DELETE
-        with open("test_debug.log", 'a') as log:
-            log.write("Finished a thread\n")
 
 
 def fetch_raw_to_file(
@@ -280,10 +277,6 @@ def fetch_raw_to_file(
     batches = []
     for i in range(0, len(entryIds), max_batch_size):
         batches.append(entryIds[i:i+max_batch_size])
-
-    # TODO: For debugging - DELETE
-    with open("test_debug.log", 'a') as log:
-        log.write(f"N batches: {len(batches)}\n")
 
     # # TODO: For testing, remove (batch validation)
     # already_seen = []
@@ -316,10 +309,6 @@ def fetch_raw_to_file(
     # Execute batch fetching by threads
     future_store = [executor.submit(fetch_batch_to_file, batches[i], outFile, lock, dbName, format, failure_log)
                     for i in range(len(batches))]
-
-    # TODO: For debugging - DELETE
-    with open("test_debug.log", 'a') as log:
-        log.write("Completed threads\n")
 
     atexit.register(executor.shutdown, wait=False)
 
@@ -407,9 +396,6 @@ def uniparc_annot_idx(raw_annot_file, idx_file):
     """ Create offset index for raw (xml format) Uniparc annotation file. Entries contain the <entry> object. Any
      outer objects which may represent batches of search results which have been subsequently concatenated are ignored.
      """
-
-    with open("test_debug.log", 'a') as log:
-        log.write("Started annot_idx\n")
 
     pos = 0
     with open(raw_annot_file) as annots:
@@ -711,9 +697,6 @@ def uprot_annots_from_uparc(
     This function can also be used to generate index files and annotation maps for Uniparc annotations if they are not
     already available. If these files are already present and follow naming conventions, they need not be specified. """
 
-    with open("test_debug.log", 'a') as log:
-        log.write("Started uprot_annots_from_uparc\n")
-
     # Uniparc index file
     if not uparc_idx:  # May be present with default name or we may need to create it
         uparc_idx_name = uparc_annot_file.split('.txt')[0]+'.idx'
@@ -764,10 +747,6 @@ def retrieve_all_annots(
     # Fetch uparc annots
     fetch_raw_to_file(uparc_seqs, uparc_annot_file, dbName='uniparc', format='uniprotrdfxml',
                       failure_log=uparc_annot_file.split('.txt')[0]+'.log', max_threads=max_threads)
-
-    # TODO: For debugging - DELETE
-    with open("test_debug.log", 'a') as log:
-        log.write("Finished fetch_raw_to_file\n")
 
     # Generate uparc index and map files + fetch mapped uprot sequences
     uprot_annots_from_uparc(uparc_annot_file, uprot_annot_file, max_threads=max_threads)

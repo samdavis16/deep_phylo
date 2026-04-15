@@ -1047,7 +1047,7 @@ def hmm_search_dom(
     dictionary mapping {seq_id : (domain_score : (hit_start, hit_end))}. Boundaries can be the domain (default) or
      envelope boundaries. Where multiple domain hits are found, the best (determined by score) is incldued only. """
 
-    temp_tag = random.randint(1e8, 1e9-1)
+    temp_tag = random.randint(int(1e8), int(1e9-1))
 
     # Determine if profiles need to be pressed
     if isinstance(profiles, list):  # Individual profiles provided, so concatenate

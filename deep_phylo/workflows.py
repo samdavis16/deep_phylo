@@ -1,6 +1,8 @@
 import glob
 import math
 import os
+import random
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -160,6 +162,7 @@ def profiles_to_tree(
         seg_files,
         iter_log_file=None,
         uparc_file_path=None,
+        seg_idx_files=None,
         segment_idx_suffix=None,
         hmm_mode="dom",
         region_type="env",
@@ -176,7 +179,7 @@ def profiles_to_tree(
         rep_level=None,
         max_seed_seqs=750,
         seed_aln_level=None,
-        init_aln_mode="default",  # TODO: Test feasibility of less heuristic aligners,
+        init_aln_mode="default",
         re_aln_mode="dash_cluster",
         valid_chars="ACDEFGHIKLMNPQRSTVWY-",
         trim_retention_gt=0.1,
@@ -186,7 +189,9 @@ def profiles_to_tree(
         aln_trim_mode="trimal",
         aln_trim_gt=0.1,
         tree_inference_mode="fasttree",
-        max_download_threads=8, max_work_threads=48, nice=None
+        max_download_threads=8, 
+        max_work_threads=48, 
+        nice=None
 ):
 
     """
@@ -200,6 +205,7 @@ def profiles_to_tree(
     :param seg_files:
     :param iter_log_file:
     :param uparc_file_path:
+    :param seg_idx_files:
     :param hmm_mode:
     :param region_type:
     :param chain_overlap_tol:
@@ -282,6 +288,7 @@ def profiles_to_tree(
             thresholds,
             seg_files,
             full_hit_file,
+            seg_idx_files=seg_idx_files,
             idx_suffix=segment_idx_suffix,
             dom_hit_file=dom_hit_file,
             hmm_mode=hmm_mode,
@@ -700,6 +707,7 @@ def full_expansion_iter(
         iter_log_file=None,
         out_dir=None,
         uparc_file_path=None,
+        seg_idx_files=None,
         segment_idx_suffix=None,
         hmm_mode_search="dom",
         hmm_mode_cs="dom",
@@ -750,6 +758,7 @@ def full_expansion_iter(
     :param dom_hit_file:
     :param out_dir:
     :param uparc_file_path:
+    :param seg_idx_files:
     :param segment_idx_suffix:
     :param seg_files:
     :param iter_log_file:
@@ -807,6 +816,7 @@ def full_expansion_iter(
         full_hit_file=full_hit_file,
         dom_hit_file=dom_hit_file,
         uparc_file_path=uparc_file_path,
+        seg_idx_files=seg_idx_files,
         segment_idx_suffix=segment_idx_suffix,
         iter_log_file=iter_log_file,
         seg_files=seg_files,
@@ -1002,14 +1012,18 @@ def run_n_iters(
         init_db_prefix = run_name + "_initdb"
     full_init_hit_file = init_db_prefix + f"_it{this_iter}_all.fa"
 
-    # Default clustering identity/coverage thresholds
+    # Default clustering  identity/coverage thresholds
     if not (clust_min_seq_ids and clust_min_seq_covs):
-        clust_min_seq_ids = [0.99, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
-        clust_min_seq_covs = [0.95, 0.9, 0.8, 0.8, 0.8, 0.8, 0.8, 0.7, 0.7, 0.7, 0.6]
+        clust_min_seq_ids = [0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+        clust_min_seq_covs = [0.9, 0.8, 0.8, 0.8, 0.8, 0.8, 0.7, 0.7, 0.7, 0.6]
+
+    # Temp dir for seq db
+    tmp_seg_dir = Path(f"tmp_seqdb_{random.randint(int(1e8), int(1e9))}")
+    tmp_seg_dir.mkdir(exist_ok=True)
 
     # Skip search space initialisation if segments already available
     if init_db_segments:
-        seg_files = init_db_segments
+        seg_files = [Path(seg) for seg in init_db_segments]
 
     # If explicitly stated not to run initdb
     elif not run_db_init:
@@ -1017,24 +1031,31 @@ def run_n_iters(
         # TODO: Hard-coded for Uniparc only
         if full_db_dir:
             seg_files = []
+            seg_idx_files = []
             for i in range(1,201):
+
+                # Sym-link segments in tmp directory
                 file_name = f"uniparc_active_p{i}.fasta"
-                if file_name not in os.listdir():
-                    subprocess.run(["ln", "-s", f"{full_db_dir.rstrip('/')}/{file_name}", '.'])
+                source_path = Path(full_db_dir)/file_name
+                link_path = tmp_seg_dir/file_name
+                link_path.symlink_to(source_path)
+                seg_files.append(link_path)
+
                 if segment_idx_suffix:  # TODO: Quick fix - to be tidied up
                     segment_idx_suffix = segment_idx_suffix.lstrip('.')
                     seg_idx_name = file_name.split('.')[0] + '.' + segment_idx_suffix
-                    if seg_idx_name in os.listdir(full_db_dir.rstrip('/')):
-                        subprocess.run(["ln", "-s", f"{full_db_dir.rstrip('/')}/{seg_idx_name}", '.'])
-
-                seg_files.append(file_name)
+                    source_path = Path(full_db_dir)/seg_idx_name
+                    link_path = Path(tmp_seg_dir)/seg_idx_name
+                    link_path.symlink_to(source_path)
+                    seg_idx_files.append(link_path)
 
         else:   # Need to download each segment
             download_threads = min(16, max_search_processes * cpu_per_search)
             curation.fetch_uniparc_fasta(
+                path=tmp_seg_dir,
                 unzip=True,
                 max_threads=download_threads)
-            seg_files = [f"uniparc_active_p{i}.fasta" for i in range(1,201)]
+            seg_files = [tmp_seg_dir/f"uniparc_active_p{i}.fasta" for i in range(1,201)]
             # raise RuntimeError(f"Only Uniparc database currently implemented for full search per-iteraiton.")
 
     else:  # Run search space initialisation
@@ -1114,6 +1135,7 @@ def run_n_iters(
             dom_hit_file=dom_hits_file,
             seg_files=seg_files,
             iter_log_file=iter_log_file,
+            seg_idx_files=seg_idx_files,
             out_dir=None,
             uparc_file_path=None,
             segment_idx_suffix=segment_idx_suffix,
@@ -1212,5 +1234,7 @@ def run_n_iters(
             run_log_f.write(f"Run completed - exploration did not converge.\n")
         else:
             run_log_f.write(f"Run completed.")
+
+    shutil.rmtree(tmp_seg_dir, ignore_errors=True)
 
     return iter_results

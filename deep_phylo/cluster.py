@@ -85,7 +85,7 @@ def get_cluster_members(db_name):
     db_name = db_name.split('DB')[0] + 'DB'
 
     members = set()
-    for clust in cluster_map(db_name).values():
+    for clust in get_cluster_map(db_name).values():
         members.update(clust)
 
     return list(members)
@@ -147,7 +147,7 @@ def db_seq_lens(seq_db, ext_ids=False):
     return len_dict
 
 
-def cluster_map(cluster_db):
+def get_cluster_map(cluster_db):
     """ Return a dictionary mapping (internal) cluster representative identifiers to all members (including the
      representative). """
 
@@ -201,7 +201,7 @@ def rep_map_reconstruction(
         sub_cluster_db = sub_cluster_db.split('DB')[0] + 'DB'
 
     # Map og cluster members to their rep
-    og_cluster_map = cluster_map(og_cluster_db)
+    og_cluster_map = get_cluster_map(og_cluster_db)
     og_member2rep = {}
     for rep, members in og_cluster_map.items():
         for member in members:
@@ -844,7 +844,7 @@ def resample_cluster_reps(
     og_cluster_db = og_cluster_db.split('DB')[0] + 'DB'
 
     if not cluster_map:  # Make map of original reps to cluster members if not already available
-        cluster_map = cluster_map(og_cluster_db)
+        cluster_map = get_cluster_map(og_cluster_db)
 
     resamples_list = []
 
@@ -883,7 +883,7 @@ def len_resample_cluster_reps(
     lower_len = lower_len if lower_len else 0
 
     if not cluster_map:  # Make map of original reps to cluster members if not already available
-        cluster_map = cluster_map(og_cluster_db)
+        cluster_map = get_cluster_map(og_cluster_db)
 
     resamples_list = []
 
@@ -920,7 +920,7 @@ def priority_resample_cluster_reps(
     og_cluster_db = og_cluster_db.split('DB')[0] + 'DB'
 
     if not cluster_map:  # Make map of original reps to cluster members if not already available
-        cluster_map = cluster.cluster_map(og_cluster_db)  # TODO: Should rename this variable to avoid shadowing
+        cluster_map = get_cluster_map(og_cluster_db)  # TODO: Should rename this variable to avoid shadowing
 
     resamples_list = []
 
@@ -1116,8 +1116,8 @@ def cluster_comparison_single(
 
     if type(clustering_1) is type(clustering_2) is str:
         # Computer cluster maps
-        clustering_1 = cluster_map(clustering_1.split('DB')[0] + 'DB')
-        clustering_2 = cluster_map(clustering_2.split('DB')[0] + 'DB')
+        clustering_1 = get_cluster_map(clustering_1.split('DB')[0] + 'DB')
+        clustering_2 = get_cluster_map(clustering_2.split('DB')[0] + 'DB')
     elif not (type(clustering_1) is type(clustering_2) is dict):
         raise RuntimeError("Clusterings must both be provided as either mmseqs databases or cluster maps.")
 
@@ -1454,7 +1454,7 @@ class HierarchicalClustering:
                 upper_len=self.upper_lens[i],
                 lower_len=self.lower_lens[i],
                 seq_lens_dict=seq_len_dict,
-                og_cluster_map=cluster_map(self.parents[-1]),
+                og_cluster_map=get_cluster_map(self.parents[-1]),
                 max_threads=max_threads,
                 nice=nice
             )
@@ -1605,7 +1605,7 @@ class HierarchicalClustering:
             file_naming = lambda x: x + '.cluster'
 
         # Get rep maps and cluster maps for each level
-        cluster_maps = [cluster_map(self.parents[i]) for i in range(len(self.parents))]
+        cluster_maps = [get_cluster_map(self.parents[i]) for i in range(len(self.parents))]
 
         rep_maps = [rep_map_reconstruction(self.parents[i], sub_cluster_db=self.parents[i+1]) for i in range(len(self.parents)-1)]
         # Need to do priority resampling of lowest level clustering reps

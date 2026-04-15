@@ -1,4 +1,5 @@
 import atexit
+import gzip
 import os
 import random
 import shutil
@@ -17,6 +18,7 @@ from . import file_util
 
 def fetch_uniparc_fasta(
         segments=None,
+        path=None,
         unzip=True,
         max_threads=1,
         verbose=1
@@ -30,18 +32,36 @@ def fetch_uniparc_fasta(
         # NOTE: This is hard-coded as number of segments from previous few releases (=200)
         segments = range(1, 201)
 
-    def get_segment(segment, unzip=False, verbose=verbose):
+    def get_segment(segment, path=None, unzip=False, verbose=verbose):
+
         segment_name = f"uniparc_active_p{segment}.fasta"
-        address = f"https://ftp.expasy.org/databases/uniprot/current_release/uniparc/fasta/active/{segment_name}.gz"
+        zipped_name = segment_name + ".gz"
+        address = f"https://ftp.expasy.org/databases/uniprot/current_release/uniparc/fasta/active/{zipped_name}"
+        
         if verbose == 1:
             print(f"Commencing download for segment {segment}.")
+
         wget_cmd = ["wget"]
+
         if verbose !=2:
             wget_cmd.append("--quiet")
+
+        if path:
+            wget_cmd.extend(["-O", path])
+            seg_p = Path(path)/segment_name
+            zipped_p = Path(path)/zipped_name
+        else:
+            seg_p = Path(segment_name)
+            zipped_p = Path(zipped_name)
+
         wget_cmd.append(address)
         subprocess.run(wget_cmd, check=True)
+        
         if unzip:
-            subprocess.run(f"gzip -d {segment_name}.gz")
+            with gzip.open(zipped_p, 'rb') as in_f: 
+                with open(Path(seg_p), 'wb') as out_f: 
+                    shutil.copyfileobj(in_f, out_f)
+
         if verbose == 1:
             print(f"Finished download for segment {segment}.")
 
@@ -49,7 +69,7 @@ def fetch_uniparc_fasta(
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
 
         try:
-            future_list = [executor.submit(get_segment, segment, unzip) for segment in segments]
+            future_list = [executor.submit(get_segment, segment, path, unzip) for segment in segments]
             for future in as_completed(future_list):
                 future.result()
         
@@ -551,21 +571,11 @@ def pss_init(
 
 def profile_search_segment(
         segment,
+        idx_file,
         seg_hits_file,
         seg_hits_dom_file
 ):
     """ Per-process searching of a single segment using profile searching with the specified hmm mode. """
-
-    # TODO: Soon to implement a single call point for phmm searching which returns (score, coords) for any mode
-
-    # TODO: Currently just implementing chain searching - only one that currently meets return contract
-
-    testing_tag = random.randint(int(1e8), int(1e9-1)) # TODO: For optimisation testing - DELETE
-    test_log_file = f"{testing_tag}_seg_{segment}.log"
-    with open(test_log_file, 'w') as log_f:
-        pass
-
-    start = time.time()
 
     hmm_results = hmm.hmm_search_custom(
         _profiles,
@@ -578,15 +588,8 @@ def profile_search_segment(
         nice=_nice
     )
 
-    end = time.time()
-
-    with open(test_log_file, 'a') as log_f:
-        log_f.write(f"HMM searching of segment completed in {round(end-start)} seconds.\n\n")
-
     hits = set()
     coords = {}
-
-    start = time.time()
 
     # Apply thresholds
     for i in range(len(_profiles)):
@@ -600,13 +603,6 @@ def profile_search_segment(
                 except KeyError:
                     coords[seq] = [result[1]]
 
-    end = time.time()
-
-    with open(test_log_file, 'a') as log_f:
-        log_f.write(f"Application of thresholds to hits completed in {round(end-start)} seconds.\n\n")
-
-    start = time.time()
-
     # Extract earliest profile start and latest profile end
     hits = list(hits)
     widest_bounds = [  # Overall region to extract for each seq
@@ -615,17 +611,9 @@ def profile_search_segment(
         for seq in hits
     ]
 
-    end = time.time()
-
-    if _idx_suffix:
-        idx_file = segment.split('.')[0] + '.' + _idx_suffix.lstrip('.')
-    else:
-        idx_file = None
-
-    with open(test_log_file, 'a') as log_f:
-        log_f.write(f"Determination of extraction endpoints completed in {round(end-start)} seconds.\n\n")
-
-    start = time.time()
+    # Infer idx file if suffix provided
+    if _idx_suffix and not idx_file:
+        idx_file = segment.with_suffix("." + _idx_suffix.lstrip('.'))
 
     # Extract hits to file
     file_util.extract_fasta(
@@ -634,13 +622,6 @@ def profile_search_segment(
         target_seqs=hits,
         idx_file=idx_file
     )
-
-    end = time.time()
-
-    with open(test_log_file, 'a') as log_f:
-        log_f.write(f"Extraction of full hits completed in {round(end-start)} seconds.\n\n")
-
-    start = time.time()
 
     if seg_hits_dom_file:
         file_util.extract_fasta(
@@ -651,19 +632,13 @@ def profile_search_segment(
             coords=widest_bounds
         )
 
-    end = time.time()
-
-    with open(test_log_file, 'a') as log_f:
-        log_f.write(f"Extraction of domain hits completed in {round(end-start)} seconds.\n\n")
-
-    Path(test_log_file).unlink()
-
 
 def profile_search_segmented_db(
         profiles,
         thresholds,
         seg_files,
         hit_file,
+        seg_idx_files=None,
         idx_suffix=None,
         dom_hit_file=None,
         hmm_mode="dom",
@@ -681,18 +656,33 @@ def profile_search_segmented_db(
      """
 
     if hit_file in os.listdir():
-        os.remove(dom_hit_file)
+        os.remove(hit_file)
     if dom_hit_file and dom_hit_file in os.listdir():
         os.remove(dom_hit_file)
+
+    # If idx files are provide explicitly
+    if seg_idx_files:
+
+        if len(seg_files) != len(seg_idx_files):
+            raise ValueError("An index file must be provided for each segment "
+                            "if provided explicitly.")
+        
+        idx_map = {seg_files[i] : seg_idx_files[i]
+                   for i in range(len(seg_files))}
+        
+    else:
+        idx_map = {seg_files[i] : None
+                   for i in range(len(seg_files))}
 
     temp_tag = random.randint(int(1e8), int(1e9)-1)
 
     seg_hit_files = {
-        file : f"{temp_tag}_{file.split('.')[0]}.fa"
+        file : f"{temp_tag}_{str(Path(file.name).with_suffix(".fa"))}"
         for file in seg_files
     }
 
     dom_seg_hit_files = {
+        # TODO: Need to update this when moving to per-iteration output directories
         file :
             seg_hit_files[file].split(".")[0]+"_dom.fa"
             if dom_hit_file else None
@@ -719,6 +709,7 @@ def profile_search_segmented_db(
         # Submit search jobs
         future_seg_map = {executor.submit(profile_search_segment,
                                           segment,
+                                          idx_map[segment],
                                           seg_hit_files[segment],
                                           dom_seg_hit_files[segment])
                           : segment
@@ -727,7 +718,13 @@ def profile_search_segmented_db(
         # Write segment hits to file/s once search complete
         for future in as_completed(future_seg_map):
 
-            future.result()
+            try:
+                future.result()
+            except Exception:
+                for f in future_seg_map:
+                    f.cancel()
+                raise
+
             segment = future_seg_map[future]
             seg_hit_file = seg_hit_files[segment]
 
@@ -740,8 +737,8 @@ def profile_search_segmented_db(
             if dom_hit_file:
                 dom_seg_hit_file = dom_seg_hit_files[segment]
                 with open(dom_hit_file, 'a') as dom_hit_f:
-                    with open(dom_seg_hit_file) as dom_set_hit_f:
-                        shutil.copyfileobj(dom_set_hit_f, dom_hit_f)
+                    with open(dom_seg_hit_file) as dom_seg_hit_f:
+                        shutil.copyfileobj(dom_seg_hit_f, dom_hit_f)
 
                 os.remove(dom_seg_hit_file)
 
