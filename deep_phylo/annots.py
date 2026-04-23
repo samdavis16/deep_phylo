@@ -1126,7 +1126,7 @@ def itol_strip_from_annot(
     # Write annotation file
     with open(color_strip_file, 'w') as out_f:
 
-        out_f.write(f"DATASET_COLORSTRIP\nSEPARATOR COMMA\n")
+        out_f.write("DATASET_COLORSTRIP\nSEPARATOR COMMA\n")
         out_f.write(f"DATASET_LABEL,{annot_label}\nCOLOR,#ff0000\n")
 
         # The actual data

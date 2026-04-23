@@ -679,7 +679,7 @@ def rr_seqs(
     extract_cluster_reps("temp_rr_fullDB", "temp_rr_clustDB", fasta_name=rr_file)
 
     # Remove temp files
-    for file in glob.glob(f"temp_rr_fullDB*"):
+    for file in glob.glob("temp_rr_fullDB*"):
         os.remove(file)
     for file in glob.glob("temp_rr_clustDB*"):
         os.remove(file)
@@ -710,7 +710,11 @@ def extract_cluster_reps(
 
         # If external IDs provided, need to convert
         try:
-            int(priority_resample[0][0])  # If no error, already have internal IDs
+            # Find first non-empty priority level
+            for i in range(len(priority_resample)):
+                if priority_resample[i]:
+                    int(priority_resample[i][0])  # If no error, already have internal IDs
+                    break
         except ValueError:  # Convert ext to int IDs
             id_map = db_id_map(seq_db, int2ext=False)
             priority_resample = [[id_map[ext_id] for ext_id in level if ext_id in id_map.keys()]
@@ -829,7 +833,7 @@ def single_cluster_fasta(
                    stdout=subprocess.DEVNULL if quiet else None)
 
     if sub_db_name == 'temp_DB':
-        for file in glob.glob(f"temp_DB*"):
+        for file in glob.glob("temp_DB*"):
             os.remove(file)
 
 
@@ -999,7 +1003,7 @@ def cascade_cluster_single(
                    max_threads=max_threads, nice=nice, quiet=quiet)
 
     if sub_db_name == "temp_subDB":
-        for file in glob.glob(f"temp_subDB*"):
+        for file in glob.glob("temp_subDB*"):
             os.remove(file)
 
 
@@ -2077,7 +2081,7 @@ def hc_merged_aln(
     aln.merge_cluster_alns(rep_aln, clust_aln_names, out_file=out_file)
 
     if remove_sub_alns:
-        for file in glob.glob(f"temp_sub_aln_*"):
+        for file in glob.glob("temp_sub_aln_*"):
             os.remove(file)
 
 

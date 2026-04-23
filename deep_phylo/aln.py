@@ -134,7 +134,6 @@ def remove_gap_only_cols(in_file, out_file):
             gap_cols.append(col)
 
     new_aln = trim_aln(og_aln, gap_cols)
-    print(new_aln.get_alignment_length())
     AlignIO.write(new_aln, out_file, 'fasta')
 
 

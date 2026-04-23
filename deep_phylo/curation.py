@@ -10,8 +10,13 @@ import time
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed, wait
 from pathlib import Path
 
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio import SeqIO
+
 from . import hmm
 from . import file_util
+from . import annots
 
 """ Functions and workflows for profile-based curation from sequence databases.  """
 
@@ -43,7 +48,7 @@ def fetch_uniparc_fasta(
 
         wget_cmd = ["wget"]
 
-        if verbose !=2:
+        if verbose != 2:
             wget_cmd.append("--quiet")
 
         if path:
@@ -348,6 +353,10 @@ def search_segment(
 
         # Generate file of full hit seqs and domain subseqs from hits
         file_util.extract_fasta(
+            f"uniparc_active_p{segment}.fasta", f"temp_{segment}.fasta", hits_above
+        )
+
+        file_util.extract_fasta(
             f"uniparc_active_p{segment}.fasta",
             f"temp_{segment}.fasta",
             hits_above)
@@ -456,7 +465,7 @@ def profile_search_segment_refseq(
     def search_segment(segment):
 
         seg_file_name = segment.split("/")[-1]
-        subprocess.run(["ln", "-s", segment, "temp_"+seg_file_name])
+        subprocess.run(["ln", "-s", segment, "temp_" + seg_file_name])
 
         hmm.profile_db(
             profiles,
@@ -728,7 +737,7 @@ def profile_search_segmented_db(
             segment = future_seg_map[future]
             seg_hit_file = seg_hit_files[segment]
 
-            with open(hit_file, 'a') as hit_f:
+            with open(hit_file, "a") as hit_f:
                 with open(seg_hit_file) as seg_hit_f:
                     shutil.copyfileobj(seg_hit_f, hit_f)
 
@@ -736,9 +745,57 @@ def profile_search_segmented_db(
 
             if dom_hit_file:
                 dom_seg_hit_file = dom_seg_hit_files[segment]
-                with open(dom_hit_file, 'a') as dom_hit_f:
+                with open(dom_hit_file, "a") as dom_hit_f:
                     with open(dom_seg_hit_file) as dom_seg_hit_f:
                         shutil.copyfileobj(dom_seg_hit_f, dom_hit_f)
 
                 os.remove(dom_seg_hit_file)
+
+
+def fetch_ena_proteins(seq_ids, out_file=None, no_return=True):
+
+    if no_return and not out_file:
+        raise ValueError(
+            "If no_return is specified, an output fasta " "file must be provided"
+        )
+    
+    records = []
+
+    # Batch into chunks of 200
+    batches = []
+    for i in range(0, len(seq_ids), 200):
+        batches.append(seq_ids[i : i + 200])
+
+    # Fetch batches and process
+    for batch in batches:
+
+        result = annots.fetch_batch_raw(
+            batch,
+            dbName="ena_coding",
+            format="default")[0]
+        
+        entries = [entry for entry in result.split("//\n")
+                   if "ID" in entry]
+        for entry in entries:
+            prot_id = entry.split('/protein_id="')[1].split('"')[0]
+            seq_str = ""
+            found_prot = False
+            for line in entry.splitlines():
+                if "/translation=" in line:
+                    found_prot = True
+                    seq_str += line.strip().split('/translation="')[1]
+                elif found_prot:
+                    seq_str += line.strip().split()[1].strip('"')
+                    if '"' in line:
+                        break
+            if prot_id not in [seq.id for seq in records]:
+                records.append(SeqRecord(
+                                    seq=Seq(seq_str),
+                                    id=prot_id,
+                                    description=""))
+            
+    if out_file:
+        SeqIO.write(records, out_file, "fasta")
+    if not no_return:
+        return records
 
