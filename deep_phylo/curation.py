@@ -612,13 +612,16 @@ def profile_search_segment(
                 except KeyError:
                     coords[seq] = [result[1]]
 
-    # Extract earliest profile start and latest profile end
+    # Extract domain based on lower median boundary over all profile by hit length
     hits = list(hits)
-    widest_bounds = [  # Overall region to extract for each seq
-        (min(coords[seq], key=lambda x: x[0])[0],
-         max(coords[seq], key=lambda x: x[1])[1])
-        for seq in hits
-    ]
+    median_bounds = []
+    for hit in hits:
+        
+        # Sort low to high by total hit length
+        hit_bounds = coords[seq]
+        hit_bounds.sort(key=lambda x: x[1]-x[0])
+        n = len(hit_bounds)
+        median_bounds.append(hit_bounds[(n-1)//2])
 
     # Infer idx file if suffix provided
     if _idx_suffix and not idx_file:
@@ -638,7 +641,7 @@ def profile_search_segment(
             seg_hits_dom_file,
             target_seqs=hits,
             idx_file=idx_file,
-            coords=widest_bounds
+            coords=median_bounds
         )
 
 
@@ -686,7 +689,7 @@ def profile_search_segmented_db(
     temp_tag = random.randint(int(1e8), int(1e9)-1)
 
     seg_hit_files = {
-        file : f"{temp_tag}_{str(Path(file.name).with_suffix(".fa"))}"
+        file : f"{temp_tag}_{str(Path(file.name).with_suffix('.fa'))}"
         for file in seg_files
     }
 
