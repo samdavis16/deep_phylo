@@ -618,7 +618,7 @@ def profile_search_segment(
     for hit in hits:
         
         # Sort low to high by total hit length
-        hit_bounds = coords[seq]
+        hit_bounds = coords[hit]
         hit_bounds.sort(key=lambda x: x[1]-x[0])
         n = len(hit_bounds)
         median_bounds.append(hit_bounds[(n-1)//2])
