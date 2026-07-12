@@ -498,17 +498,17 @@ def profiles_to_tree(
         raise RuntimeError(f"Alignment trimming mode {aln_trim_mode} is not implemented.")
 
     # Construct phylogeny
-    tree_name = re_aln_name.split('.')[0] + ".nwk"
+    tree_name = trimmed_aln_name.split('.')[0] + ".nwk"
 
     if iter_log_file:
         with open(iter_log_file, 'a') as log_f:
             log_f.write(f"Beginning tree inference with mode {tree_inference_mode} --> {tree_name}.\n\n")
 
     if tree_inference_mode == "fasttree":
-        tree.run_fasttree(re_aln_name,
+        tree.run_fasttree(trimmed_aln_name,
                           tree_name,
                           nice=nice,
-                          log_file=re_aln_name.split('.')[0] + ".log")
+                          log_file=trimmed_aln_name.split('.')[0] + ".log")
 
     else:
         raise RuntimeError(f"Tree inference mode {tree_inference_mode} is not implemented.")
