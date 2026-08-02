@@ -604,45 +604,48 @@ def profile_search_segment(
     for i in range(len(_profiles)):
         profile_name = _profiles[i].split(".hmm")[0]
         profile_threshold = _thresholds[i]
-        for seq, result in hmm_results[profile_name].items():
-            if result[0] >= profile_threshold:
-                hits.add(seq)
-                try:
-                    coords[seq].append(result[1])
-                except KeyError:
-                    coords[seq] = [result[1]]
+        if profile_name in hmm_results:
+            for seq, result in hmm_results[profile_name].items():
+                if result[0] >= profile_threshold:
+                    hits.add(seq)
+                    try:
+                        coords[seq].append(result[1])
+                    except KeyError:
+                        coords[seq] = [result[1]]
 
-    # Extract domain based on lower median boundary over all profile by hit length
-    hits = list(hits)
-    median_bounds = []
-    for hit in hits:
-        
-        # Sort low to high by total hit length
-        hit_bounds = coords[hit]
-        hit_bounds.sort(key=lambda x: x[1]-x[0])
-        n = len(hit_bounds)
-        median_bounds.append(hit_bounds[(n-1)//2])
+    if hits:
 
-    # Infer idx file if suffix provided
-    if _idx_suffix and not idx_file:
-        idx_file = segment.with_suffix("." + _idx_suffix.lstrip('.'))
+        # Extract domain based on lower median boundary over all profile by hit length
+        hits = list(hits)
+        median_bounds = []
+        for hit in hits:
+            
+            # Sort low to high by total hit length
+            hit_bounds = coords[hit]
+            hit_bounds.sort(key=lambda x: x[1]-x[0])
+            n = len(hit_bounds)
+            median_bounds.append(hit_bounds[(n-1)//2])
 
-    # Extract hits to file
-    file_util.extract_fasta(
-        segment,
-        seg_hits_file,
-        target_seqs=hits,
-        idx_file=idx_file
-    )
+        # Infer idx file if suffix provided
+        if _idx_suffix and not idx_file:
+            idx_file = segment.with_suffix("." + _idx_suffix.lstrip('.'))
 
-    if seg_hits_dom_file:
+        # Extract hits to file
         file_util.extract_fasta(
             segment,
-            seg_hits_dom_file,
+            seg_hits_file,
             target_seqs=hits,
-            idx_file=idx_file,
-            coords=median_bounds
+            idx_file=idx_file
         )
+
+        if seg_hits_dom_file:
+            file_util.extract_fasta(
+                segment,
+                seg_hits_dom_file,
+                target_seqs=hits,
+                idx_file=idx_file,
+                coords=median_bounds
+            )
 
 
 def profile_search_segmented_db(
@@ -740,19 +743,21 @@ def profile_search_segmented_db(
             segment = future_seg_map[future]
             seg_hit_file = seg_hit_files[segment]
 
-            with open(hit_file, "a") as hit_f:
-                with open(seg_hit_file) as seg_hit_f:
-                    shutil.copyfileobj(seg_hit_f, hit_f)
+            if Path(seg_hit_file).exists():
 
-            os.remove(seg_hit_file)
+                with open(hit_file, "a") as hit_f:
+                    with open(seg_hit_file) as seg_hit_f:
+                        shutil.copyfileobj(seg_hit_f, hit_f)
 
-            if dom_hit_file:
-                dom_seg_hit_file = dom_seg_hit_files[segment]
-                with open(dom_hit_file, "a") as dom_hit_f:
-                    with open(dom_seg_hit_file) as dom_seg_hit_f:
-                        shutil.copyfileobj(dom_seg_hit_f, dom_hit_f)
+                os.remove(seg_hit_file)
 
-                os.remove(dom_seg_hit_file)
+                if dom_hit_file:
+                    dom_seg_hit_file = dom_seg_hit_files[segment]
+                    with open(dom_hit_file, "a") as dom_hit_f:
+                        with open(dom_seg_hit_file) as dom_seg_hit_f:
+                            shutil.copyfileobj(dom_seg_hit_f, dom_hit_f)
+
+                    os.remove(dom_seg_hit_file)
 
 
 def fetch_ena_proteins(seq_ids, out_file=None, no_return=True):
