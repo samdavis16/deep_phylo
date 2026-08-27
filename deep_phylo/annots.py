@@ -1073,6 +1073,8 @@ def itol_strip_from_annot(
         full_annot_file,
         color_strip_file,
         annot_label,
+        annot_cols=None,
+        other_col=None,
         binary_annot=False,
         binary_color="#ff0000"
 ):
@@ -1080,9 +1082,16 @@ def itol_strip_from_annot(
     annotation (.annot) file. If a binary annotation is specified, specific annotation values are ignored and any
     sequence with a non-null annotation are tagged with the same colour and with label 'True'. """
 
-    # Colour scheme for annotation label groups
-    tab20 = mpl.colormaps["tab20"]
-    hex_cols = [mpl.colors.to_hex(c) for c in tab20.colors]
+    # If colours are provided...
+    if isinstance(annot_cols, dict):  # Specific vals designated specific colours
+        hex_cols = annot_cols
+
+    elif isinstance(annot_cols, (list, tuple)):  # Colours selected but not assigned
+        hex_cols = annot_cols
+
+    else:  # Automatic colours
+        tab20 = mpl.colormaps["tab20"]
+        hex_cols = [mpl.colors.to_hex(c) for c in tab20.colors]
 
     # Sort annotations for given label
     full_annots = annot_dict_from_file(full_annot_file)
@@ -1096,7 +1105,25 @@ def itol_strip_from_annot(
 
         color_map = {"True" : binary_color}
 
+    elif isinstance(hex_cols, dict):  # Cols already assigned to vals
+
+        # Any vals not assigned colour --> assign to "Other"
+        col_options = mpl.colormaps["tab20"]
+        hex_options = [mpl.colors.to_hex(c) for c in col_options.colors]
+        if not other_col:
+            for col in hex_options:
+                if col not in hex_cols:
+                    other_col = col
+                    break
+
+        color_map = copy.deepcopy(hex_cols)
+        for seq in spec_annots:
+            if spec_annots[seq] not in hex_cols:
+                color_map[spec_annots[seq]] = other_col
+
     else:  # Allocate specific colours to unique annot values
+
+        # TODO: Currently a mismatch on number of colors used when providing a list of unassigned hex colors
 
         # Rank specific values by frequency
         val_counts = {}
