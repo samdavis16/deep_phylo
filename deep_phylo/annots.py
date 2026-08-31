@@ -1926,7 +1926,8 @@ def map_and_extract_annots(
 
     # Swap in Uniparc IDs for the member entry they map to
     uparc_annot_dict = {uparc_id : uprot_annot_dict[uprot_id]
-                        for uparc_id, uprot_id in single_map.items()}
+                        for uparc_id, uprot_id in single_map.items()
+                        if uprot_id in uprot_annot_dict}
 
     # Tag Swissprot annotations explicitly
     if sprot_prefix:
